@@ -7,8 +7,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function handleLogin(e: React.FormEvent) {
+async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -28,6 +27,13 @@ export default function LoginPage() {
 
       if (data.token) {
         localStorage.setItem("token", data.token);
+
+        // TAMBAHKAN BARIS INI: Simpan data user ke LocalStorage secara otomatis
+        const userData = data.user || data.data?.user || data.data;
+        if (userData) {
+          localStorage.setItem("user", JSON.stringify(userData));
+        }
+
         document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
         window.location.href = "/dashboard";
       }

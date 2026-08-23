@@ -6,14 +6,20 @@ import Link from "next/link";
 interface User {
   id: number;
   name: string;
+  full_name?: string;
+}
+
+interface StatusOrPriority {
+  id: number;
+  name: string;
 }
 
 interface Ticket {
   id: number;
   ticket_number?: string;
   subject: string;
-  status: string;
-  priority: string;
+  status?: StatusOrPriority | string;
+  priority?: StatusOrPriority | string;
   assignee?: User | null;
   requester?: User | null;
   created_at: string;
@@ -27,7 +33,8 @@ export default function TicketsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
   const [selectedPriority, setSelectedPriority] = useState("ALL");
-useEffect(() => {
+
+  useEffect(() => {
     async function fetchTickets() {
       try {
         const token = localStorage.getItem("token");
@@ -49,26 +56,40 @@ useEffect(() => {
     fetchTickets();
   }, []);
 
-  // Filter logika di sisi client (instan & responsif)
+  // Helper untuk membaca nama status/priority baik berbentuk Objek maupun String
+  const getStatusName = (status: StatusOrPriority | string | undefined) => {
+    if (!status) return "Open";
+    return typeof status === "object" ? status.name : status;
+  };
+
+  const getPriorityName = (priority: StatusOrPriority | string | undefined) => {
+    if (!priority) return "Low";
+    return typeof priority === "object" ? priority.name : priority;
+  };
+
+  // Filter logika di sisi client
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
-      // 1. Filter Search (Subjek / Nomor Tiket / Requester)
+      const statusName = getStatusName(ticket.status);
+      const priorityName = getPriorityName(ticket.priority);
+      const requesterName = ticket.requester?.name || ticket.requester?.full_name || "";
+
+      // 1. Filter Search
       const matchesSearch =
         ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (ticket.ticket_number &&
           ticket.ticket_number.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (ticket.requester?.name &&
-          ticket.requester.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        requesterName.toLowerCase().includes(searchQuery.toLowerCase());
 
       // 2. Filter Status
       const matchesStatus =
         selectedStatus === "ALL" ||
-        ticket.status.toLowerCase() === selectedStatus.toLowerCase();
+        statusName.toLowerCase() === selectedStatus.toLowerCase();
 
       // 3. Filter Priority
       const matchesPriority =
         selectedPriority === "ALL" ||
-        ticket.priority.toLowerCase() === selectedPriority.toLowerCase();
+        priorityName.toLowerCase() === selectedPriority.toLowerCase();
 
       return matchesSearch && matchesStatus && matchesPriority;
     });
@@ -133,7 +154,6 @@ useEffect(() => {
             >
               <option value="ALL">Semua Prioritas</option>
               <option value="Low">Low</option>
-
               <option value="Medium">Medium</option>
               <option value="High">High</option>
               <option value="Urgent">Urgent</option>
@@ -165,60 +185,65 @@ useEffect(() => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                {filteredTickets.map((ticket) => (
-                  <tr key={ticket.id} className="hover:bg-slate-50/50 transition duration-150">
-                    <td className="py-3.5 px-4 font-mono font-medium text-slate-500">
-                      #{ticket.ticket_number || ticket.id}
-                    </td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-800 max-w-xs truncate">
-                      {ticket.subject}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600">
-                      {ticket.requester?.name || "-"}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600">
-                      {ticket.assignee?.name || (
-                        <span className="text-slate-400 italic">Unassigned</span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                          ticket.priority === "Urgent" || ticket.priority === "High"
-                            ? "bg-rose-50 text-rose-600 border border-rose-200/60"
-                            : ticket.priority === "Medium"
-                            ? "bg-amber-50 text-amber-600 border border-amber-200/60"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {ticket.priority}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-bold ${
-                          ticket.status === "Open"
-                            ? "bg-amber-50 text-amber-600 border border-amber-200/60"
-                            : ticket.status === "Assigned" || ticket.status === "In Progress"
-                            ? "bg-blue-50 text-blue-600 border border-blue-200/60"
-                            : ticket.status === "Resolved"
-                            ? "bg-emerald-50 text-emerald-600 border border-emerald-200/60"
-                            : "bg-slate-100 text-slate-500"
-                        }`}
-                      >
-                        {ticket.status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <Link
-                        href={`/tickets/${ticket.id}`}
-                        className="inline-block px-3 py-1 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 rounded-lg text-[11px] font-medium transition duration-150"
-                      >
-                        Detail
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {filteredTickets.map((ticket) => {
+                  const statusName = getStatusName(ticket.status);
+                  const priorityName = getPriorityName(ticket.priority);
+
+                  return (
+                    <tr key={ticket.id} className="hover:bg-slate-50/50 transition duration-150">
+                      <td className="py-3.5 px-4 font-mono font-medium text-slate-500">
+                        #{ticket.ticket_number || ticket.id}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-800 max-w-xs truncate">
+                        {ticket.subject}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600">
+                        {ticket.requester?.name || ticket.requester?.full_name || "-"}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600">
+                        {ticket.assignee?.name || ticket.assignee?.full_name || (
+                          <span className="text-slate-400 italic">Unassigned</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            priorityName === "Urgent" || priorityName === "High"
+                              ? "bg-rose-50 text-rose-600 border border-rose-200/60"
+                              : priorityName === "Medium"
+                              ? "bg-amber-50 text-amber-600 border border-amber-200/60"
+                              : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {priorityName}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-bold ${
+                            statusName === "Open"
+                              ? "bg-amber-50 text-amber-600 border border-amber-200/60"
+                              : statusName === "Assigned" || statusName === "In Progress"
+                              ? "bg-blue-50 text-blue-600 border border-blue-200/60"
+                              : statusName === "Resolved"
+                              ? "bg-emerald-50 text-emerald-600 border border-emerald-200/60"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {statusName}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <Link
+                          href={`/tickets/${ticket.id}`}
+                          className="inline-block px-3 py-1 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 rounded-lg text-[11px] font-medium transition duration-150"
+                        >
+                          Detail
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

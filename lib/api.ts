@@ -1,16 +1,25 @@
-const API_URL = "http://127.0.0.1:8000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-export async function apiFetch(
-  endpoint: string,
-  options: RequestInit = {}
-) {
-  const token = localStorage.getItem("token");
+export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+  // Ambil token dari localStorage jika berada di lingkungan browser
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  return fetch(`${API_URL}${endpoint}`, {
+  // Header default
+  const headers: HeadersInit = {
+    Accept: "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers,
+  };
+
+  // Pasang Content-Type JSON HANYA jika body BUKAN FormData
+  if (options.body && !(options.body instanceof FormData)) {
+    (headers as Record<string, string>)["Content-Type"] = "application/json";
+  }
+
+  const res = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
   });
+
+  return res;
 }

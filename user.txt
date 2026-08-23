@@ -1,0 +1,25 @@
+-- 1. Buat Akun IT Engineer / Agent (role_id = 4)
+INSERT INTO users (employee_number, full_name, email, password_hash, role_id, is_active, created_at, updated_at)
+VALUES (
+  'EMP002', 
+  'Engineer IT Test', 
+  'agent@freshwork.local', 
+  '$2y$12$8VKdxoEJt2PVhSMXZwldn.qfqjXp63B1p4lOZKXxkjc68PlPfqKcG', -- Gunakan hash password yang sama dengan user ID 2
+  4, 
+  true, 
+  NOW(), 
+  NOW()
+);
+
+-- 2. Buat Akun Requester / User Biasa (role_id = 5)
+INSERT INTO users (employee_number, full_name, email, password_hash, role_id, is_active, created_at, updated_at)
+VALUES (
+  'EMP003', 
+  'User Biasa Test', 
+  'user@freshwork.local', 
+  '$2y$12$8VKdxoEJt2PVhSMXZwldn.qfqjXp63B1p4lOZKXxkjc68PlPfqKcG', 
+  5, 
+  true, 
+  NOW(), 
+  NOW()
+);
