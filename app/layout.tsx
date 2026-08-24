@@ -78,7 +78,7 @@ function Navbar() {
               F
             </div>
             <span className="font-bold text-slate-800 text-lg tracking-tight">
-              Helpdesk <span className="text-blue-600 font-normal">ICT-RSPB</span>
+              Helpdesk <span className="text-blue-600 font-normal">Freshwork</span>
             </span>
           </div>
 

@@ -1,227 +1,216 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell, LineChart, Line, Legend 
+} from "recharts";
+import { 
+  Ticket, CheckCircle2, Clock, ShieldCheck, 
+  UserCheck, RefreshCw 
+} from "lucide-react";
 
-export default function AgentDashboard({ user }: { user: any }) {
-  const [stats, setStats] = useState({
-    open: 0,
-    assigned: 0,
-    inProgress: 0,
-    resolved: 0,
-    closed: 0,
-    priorityUrgent: 0,
-    priorityHigh: 0,
-    priorityMedium: 0,
-    priorityLow: 0,
-    myAssigned: 0,
-    unassigned: 0,
-    slaNearBreach: 0,
-    slaBreached: 0,
-  });
+interface DashboardData {
+  my_tickets: number;
+  unassigned_tickets: number;
+  completed_today: number;
+  open_tickets: number;
+  assigned_tickets: number;
+  in_progress_tickets: number;
+  resolved_tickets: number;
+  closed_tickets: number;
+  sla_on_time: number;
+  sla_response_breached: number;
+  sla_resolution_breached: number;
+  sla_compliance_rate: number;
+  monthly_trends?: { month: string; incoming: number; resolved: number }[];
+  top_categories?: { name: string; count: number }[];
+  agent_workloads?: { name: string; active_tickets: number }[];
+}
 
-  const [agentWorkload, setAgentWorkload] = useState<Record<string, number>>({});
+const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
+
+export default function AdminDashboard() {
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const currentUserId = user?.id;
-
-  const getCleanStatus = (status: any): string => {
-    if (!status) return "";
-    let str = typeof status === "string" ? status : status.name || status.title || String(status);
-    return str.toUpperCase().replace(/[\s_]+/g, "");
-  };
-
-  const getCleanPriority = (priority: any): string => {
-    if (!priority) return "";
-    let str = typeof priority === "string" ? priority : priority.name || String(priority);
-    return str.toUpperCase().replace(/[\s_]+/g, "");
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://127.0.0.1:8000/api/dashboard", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setData(result);
+      }
+    } catch (err) {
+      console.error("Gagal mengambil data dashboard:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    async function fetchAgentData() {
-      try {
-        const res = await apiFetch("/tickets");
-        if (res.ok) {
-          const data = await res.json();
-          const ticketList: any[] = Array.isArray(data) ? data : data.data || [];
+    fetchDashboardData();
+  }, []);
 
-          let open = 0, assigned = 0, inProgress = 0, resolved = 0, closed = 0;
-          let pUrgent = 0, pHigh = 0, pMedium = 0, pLow = 0;
-          let myAssigned = 0, unassigned = 0, nearBreach = 0, breached = 0;
-
-          const workloadMap: Record<string, number> = {};
-          const now = new Date().getTime();
-
-          ticketList.forEach((t) => {
-            const st = getCleanStatus(t.status);
-            const pr = getCleanPriority(t.priority);
-            const isFinished = ["RESOLVED", "CLOSED"].includes(st);
-
-            // Status Utama
-            if (st === "OPEN") open++;
-            else if (st === "ASSIGNED") assigned++;
-            else if (st === "INPROGRESS") inProgress++;
-            else if (st === "RESOLVED") resolved++;
-            else if (st === "CLOSED") closed++;
-
-            // Prioritas
-            if (["URGENT", "CRITICAL"].includes(pr)) pUrgent++;
-            else if (pr === "HIGH") pHigh++;
-            else if (pr === "MEDIUM") pMedium++;
-            else pLow++;
-
-            // Tiket Saya, Unassigned & Workload
-            const assigneeId = t.assignee_id || t.assigned_to || t.assignee?.id;
-            const agentName = t.assignee?.full_name || t.assignee?.name || t.assignee_name;
-
-            if (!isFinished) {
-              if (assigneeId === currentUserId) myAssigned++;
-              if (!assigneeId) unassigned++;
-              if (agentName) workloadMap[agentName] = (workloadMap[agentName] || 0) + 1;
-            }
-
-            // SLA Calculations
-            if (!isFinished && t.sla_due_at) {
-              const dueDate = new Date(t.sla_due_at).getTime();
-              const diffHours = (dueDate - now) / (1000 * 60 * 60);
-
-              if (diffHours < 0) breached++;
-              else if (diffHours <= 2) nearBreach++;
-            }
-          });
-
-          setStats({
-            open, assigned, inProgress, resolved, closed,
-            priorityUrgent: pUrgent,
-            priorityHigh: pHigh,
-            priorityMedium: pMedium,
-            priorityLow: pLow,
-            myAssigned,
-            unassigned,
-            slaNearBreach: nearBreach,
-            slaBreached: breached,
-          });
-
-          setAgentWorkload(workloadMap);
-        }
-      } catch (err) {
-        console.error("Gagal memuat data workspace agent:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchAgentData();
-  }, [currentUserId]);
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-slate-600 font-medium">Memuat Analytics ITSM...</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex justify-between items-center">
+    <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Workspace Agent & IT Support</h2>
-          <p className="text-slate-500 text-sm mt-1">
-            Pantau status tiket, antrean pengerjaan, performa SLA, dan tingkat prioritas.
+          <h1 className="text-2xl font-bold text-slate-900">ITSM Analytics & Executive Dashboard</h1>
+          <p className="text-slate-500 text-sm">
+            Ringkasan kinerja dan beban kerja tim ICT secara real-time untuk audit manajemen.
           </p>
         </div>
-        <Link
-          href="/tickets"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-semibold transition shadow"
+        <button
+          onClick={fetchDashboardData}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-all shadow-sm"
         >
-          Kelola Tiket &rarr;
-        </Link>
+          <RefreshCw className="w-4 h-4" /> Refresh Data
+        </button>
       </div>
 
-      {/* 1. Status Utama Tiket */}
-      <div>
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">1. Status Utama Tiket</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-sky-500">
-            <p className="text-[11px] font-bold text-slate-400 uppercase">Open</p>
-            <p className="text-2xl font-bold text-sky-600 mt-1">{loading ? "..." : stats.open}</p>
+      {/* 1. Stat Cards KPI Utama */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+          <div className="p-3.5 bg-blue-50 text-blue-600 rounded-xl">
+            <Ticket className="w-6 h-6" />
           </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-purple-500">
-            <p className="text-[11px] font-bold text-slate-400 uppercase">Assigned</p>
-            <p className="text-2xl font-bold text-purple-600 mt-1">{loading ? "..." : stats.assigned}</p>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Tiket Saya / Assigned</p>
+            <h3 className="text-2xl font-bold text-slate-900">{data?.my_tickets || 0}</h3>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
-            <p className="text-[11px] font-bold text-slate-400 uppercase">In Progress</p>
-            <p className="text-2xl font-bold text-blue-600 mt-1">{loading ? "..." : stats.inProgress}</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+          <div className="p-3.5 bg-amber-50 text-amber-600 rounded-xl">
+            <Clock className="w-6 h-6" />
           </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-emerald-500">
-            <p className="text-[11px] font-bold text-slate-400 uppercase">Resolved</p>
-            <p className="text-2xl font-bold text-emerald-600 mt-1">{loading ? "..." : stats.resolved}</p>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Belum Didaulat (Unassigned)</p>
+            <h3 className="text-2xl font-bold text-slate-900">{data?.unassigned_tickets || 0}</h3>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-slate-400">
-            <p className="text-[11px] font-bold text-slate-400 uppercase">Closed</p>
-            <p className="text-2xl font-bold text-slate-600 mt-1">{loading ? "..." : stats.closed}</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+          <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-xl">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Selesai Hari Ini</p>
+            <h3 className="text-2xl font-bold text-slate-900">{data?.completed_today || 0}</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+          <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-xl">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Kepatuhan SLA</p>
+            <h3 className="text-2xl font-bold text-slate-900">{data?.sla_compliance_rate || 100}%</h3>
           </div>
         </div>
       </div>
 
-      {/* 2. Performa SLA & Antrean */}
-      <div>
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">2. Performa SLA & Antrean</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase">Tiket Saya (Assigned)</p>
-            <p className="text-3xl font-bold text-blue-600 mt-2">{loading ? "..." : stats.myAssigned}</p>
+      {/* 2. Rincian Indikator Audit SLA Breach */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+          <span className="text-sm font-medium text-slate-700">Tepat Waktu (On Time): <b>{data?.sla_on_time || 0}</b></span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+          <span className="text-sm font-medium text-slate-700">Terlambat Respon: <b>{data?.sla_response_breached || 0}</b></span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-3 h-3 rounded-full bg-rose-500"></div>
+          <span className="text-sm font-medium text-slate-700">Terlambat Selesai: <b>{data?.sla_resolution_breached || 0}</b></span>
+        </div>
+      </div>
+
+      {/* 3. Section Grafik Utama */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Tren Bulanan */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+          <h3 className="text-base font-bold text-slate-800 mb-4">Tren Tiket Bulanan</h3>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data?.monthly_trends || []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#64748b" }} />
+                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="incoming" name="Tiket Masuk" stroke="#3B82F6" strokeWidth={2.5} />
+                <Line type="monotone" dataKey="resolved" name="Tiket Selesai" stroke="#10B981" strokeWidth={2.5} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase">Belum Didaulat (Unassigned)</p>
-            <p className="text-3xl font-bold text-amber-500 mt-2">{loading ? "..." : stats.unassigned}</p>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <p className="text-xs font-semibold text-slate-400 uppercase">Hampir Overdue (&lt; 2 Jam)</p>
-            <p className="text-3xl font-bold text-orange-500 mt-2">{loading ? "..." : stats.slaNearBreach}</p>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-r-4 border-r-rose-600">
-            <p className="text-xs font-semibold text-slate-400 uppercase">SLA Breached (Terlambat)</p>
-            <p className="text-3xl font-bold text-rose-600 mt-2">{loading ? "..." : stats.slaBreached}</p>
+        </div>
+
+        {/* Pie Chart Top Categories */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+          <h3 className="text-base font-bold text-slate-800 mb-4">Top 5 Kategori Masalah</h3>
+          <div className="h-72 w-full flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data?.top_categories || []}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="count"
+                  label={(e) => e.name}
+                >
+                  {(data?.top_categories || []).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* 3. Prioritas & Beban Kerja */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 mb-4">Breakdown Prioritas Tiket</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 bg-rose-50 rounded-lg border border-rose-100">
-              <p className="text-[11px] font-bold text-rose-600 uppercase">Urgent / Critical</p>
-              <p className="text-2xl font-bold text-rose-700 mt-1">{loading ? "..." : stats.priorityUrgent}</p>
-            </div>
-            <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
-              <p className="text-[11px] font-bold text-amber-600 uppercase">High</p>
-              <p className="text-2xl font-bold text-amber-700 mt-1">{loading ? "..." : stats.priorityHigh}</p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-[11px] font-bold text-blue-600 uppercase">Medium</p>
-              <p className="text-2xl font-bold text-blue-700 mt-1">{loading ? "..." : stats.priorityMedium}</p>
-            </div>
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <p className="text-[11px] font-bold text-slate-500 uppercase">Low</p>
-              <p className="text-2xl font-bold text-slate-700 mt-1">{loading ? "..." : stats.priorityLow}</p>
-            </div>
+      {/* 4. Bar Chart Beban Kerja Staf ICT */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-slate-800">Distribusi Beban Kerja Tim ICT</h3>
+            <p className="text-xs text-slate-500">Jumlah tiket aktif per teknisi/agen</p>
           </div>
+          <UserCheck className="w-5 h-5 text-slate-400" />
         </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 mb-3">Beban Kerja Agent / Teknisi</h3>
-          {Object.keys(agentWorkload).length === 0 ? (
-            <p className="text-xs text-slate-400 py-6 text-center">Tidak ada tiket aktif yang dipegang teknisi saat ini.</p>
-          ) : (
-            <div className="space-y-2.5 max-h-44 overflow-y-auto pr-1">
-              {Object.entries(agentWorkload).map(([agent, count]) => (
-                <div key={agent} className="flex justify-between items-center text-xs p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-                  <span className="font-semibold text-slate-700">{agent}</span>
-                  <span className="px-2.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">
-                    {count} Tiket
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data?.agent_workloads || []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} />
+              <YAxis tick={{ fontSize: 12, fill: "#64748b" }} />
+              <Tooltip />
+              <Bar dataKey="active_tickets" name="Tiket Aktif" fill="#3B82F6" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from "react";
 
+// Mengambil URL Backend Laravel dari env atau fallback ke localhost Laravel
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+
 // Tipe Data untuk Kategori Tiket
+// Cari bagian interface TicketCategory di paling atas file page.tsx Anda
 interface TicketCategory {
   id: number;
   name: string;
+  parent_id?: number | null;
+  children?: TicketCategory[]; // <--- TAMBAHKAN BARIS INI
 }
 
 // Tipe Data untuk Dynamic Field
@@ -34,7 +40,7 @@ export default function DynamicFieldsManagementPage() {
   const [fieldLabel, setFieldLabel] = useState<string>("");
   const [fieldName, setFieldName] = useState<string>("");
   const [fieldType, setFieldType] = useState<"text" | "number" | "select" | "textarea" | "radio">("text");
-  const [optionsString, setOptionsString] = useState<string>(""); // Untuk input pilihan dropdown/radio
+  const [optionsString, setOptionsString] = useState<string>("");
   const [isRequired, setIsRequired] = useState<boolean>(true);
   const [orderIndex, setOrderIndex] = useState<number>(1);
 
@@ -56,11 +62,16 @@ export default function DynamicFieldsManagementPage() {
     setLoadingCategory(true);
     try {
       const token = localStorage.getItem("token") || "";
-      const res = await fetch("/api/ticket-categories", {
-        headers: { Authorization: `Bearer ${token}` },
+      // DIBERSIHKAN: Menggunakan URL Laravel
+      const res = await fetch(`${API_URL}/ticket-categories`, {
+        headers: { 
+          Accept: "application/json",
+          Authorization: `Bearer ${token}` 
+        },
       });
-      const data = await res.json();
-      setCategories(data || []);
+      const result = await res.json();
+      // Mengantisipasi jika Laravel mengembalikan { data: [...] } atau array langsung
+      setCategories(Array.isArray(result) ? result : result.data || []);
     } catch (err) {
       console.error("Gagal mengambil daftar kategori:", err);
     } finally {
@@ -72,14 +83,18 @@ export default function DynamicFieldsManagementPage() {
     setLoadingFields(true);
     try {
       const token = localStorage.getItem("token") || "";
-      const res = await fetch(`/api/category-fields?category_id=${categoryId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      // DIBERSIHKAN: Menembak endpoint Laravel ticket-fields
+      const res = await fetch(`${API_URL}/ticket-fields?category_id=${categoryId}`, {
+        headers: { 
+          Accept: "application/json",
+          Authorization: `Bearer ${token}` 
+        },
       });
-      const data = await res.json();
-      setExistingFields(data || []);
+      const result = await res.json();
+      const fieldsData = Array.isArray(result) ? result : result.data || [];
       
-      // Auto set order_index ke urutan berikutnya
-      setOrderIndex((data?.length || 0) + 1);
+      setExistingFields(fieldsData);
+      setOrderIndex((fieldsData?.length || 0) + 1);
     } catch (err) {
       console.error("Gagal mengambil data kolom kustom:", err);
     } finally {
@@ -87,7 +102,7 @@ export default function DynamicFieldsManagementPage() {
     }
   };
 
-  // Auto-generate field_name berdasarkan field_label (slug format: "Nomor Registrasi" -> "nomor_registrasi")
+  // Auto-generate field_name berdasarkan field_label
   const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setFieldLabel(val);
@@ -121,7 +136,6 @@ export default function DynamicFieldsManagementPage() {
     setSubmitting(true);
     setMessage(null);
 
-    // Format Options: Convert string dipisah koma -> Array JSON / null
     let formattedOptions: string[] | null = null;
     if ((fieldType === "select" || fieldType === "radio") && optionsString.trim() !== "") {
       formattedOptions = optionsString
@@ -135,17 +149,19 @@ export default function DynamicFieldsManagementPage() {
       field_label: fieldLabel,
       field_name: fieldName,
       field_type: fieldType,
-      options: formattedOptions, // Dikirim sebagai Array (Nanti Laravel convert ke JSON)
+      options: formattedOptions,
       is_required: isRequired,
       order_index: Number(orderIndex),
     };
 
     try {
       const token = localStorage.getItem("token") || "";
-      const res = await fetch("/api/category-fields", {
+      // DIBERSIHKAN: POST ke endpoint Laravel ticket-fields
+      const res = await fetch(`${API_URL}/ticket-fields`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -155,7 +171,7 @@ export default function DynamicFieldsManagementPage() {
 
       setMessage({ type: "success", text: "Kolom formulir baru berhasil ditambahkan!" });
       resetForm();
-      fetchCategoryFields(Number(selectedCategoryId)); // Refresh daftar kolom
+      fetchCategoryFields(Number(selectedCategoryId));
     } catch (err) {
       setMessage({ type: "error", text: "Terjadi kesalahan saat menyimpan field." });
     } finally {
@@ -165,7 +181,6 @@ export default function DynamicFieldsManagementPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-2 sm:p-6">
-      {/* Title Header */}
       <div>
         <h1 className="text-xl font-bold text-slate-800">Manajemen Formulir Kustom (Dynamic Form Builder)</h1>
         <p className="text-xs text-slate-500 mt-1">
@@ -173,29 +188,35 @@ export default function DynamicFieldsManagementPage() {
         </p>
       </div>
 
-      {/* Select Category Bar */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
         <label className="block text-xs font-bold text-slate-700 mb-2">
           PILIH KATEGORI TIKET <span className="text-rose-500">*</span>
         </label>
-        <select
-          value={selectedCategoryId}
-          onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : "")}
-          className="w-full text-xs md:text-sm px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
-        >
-          <option value="">-- Pilih Kategori Tiket --</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              ID: {cat.id} - {cat.name}
-            </option>
-          ))}
-        </select>
+      <select
+  value={selectedCategoryId}
+  onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : "")}
+  className="w-full text-xs md:text-sm px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
+>
+  <option value="">-- Pilih Sub-Kategori Tiket --</option>
+  {categories.map((parent) => (
+    <optgroup key={parent.id} label={`📂 ${parent.name}`}>
+      {/* Opsi jika Parent itu sendiri ingin diberi field */}
+      <option value={parent.id}>
+        [Parent] {parent.name}
+      </option>
+      
+      {/* Render Sub-Kategori (Children) */}
+      {parent.children?.map((child) => (
+        <option key={child.id} value={child.id}>
+          &nbsp;&nbsp;└── {child.name}
+        </option>
+      ))}
+    </optgroup>
+  ))}
+</select>
       </div>
 
-      {/* Grid Content (Kiri: Form Input Field, Kanan: Preview & Live Fields List) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* KOLOM KIRI: Form Tambah Field Baru */}
         <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
           <h2 className="text-sm font-bold text-slate-800 mb-4 border-b pb-3 border-slate-100">
             ➕ Tambah Field Isian Baru
@@ -214,7 +235,6 @@ export default function DynamicFieldsManagementPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Label Field */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">
                 Label Input (Tampilan UI) <span className="text-rose-500">*</span>
@@ -229,7 +249,6 @@ export default function DynamicFieldsManagementPage() {
               />
             </div>
 
-            {/* Field Name (Database Key) */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">
                 Field Name (Key System/Database) <span className="text-rose-500">*</span>
@@ -247,7 +266,6 @@ export default function DynamicFieldsManagementPage() {
               </span>
             </div>
 
-            {/* Tipe Input */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">
                 Tipe Input <span className="text-rose-500">*</span>
@@ -265,7 +283,6 @@ export default function DynamicFieldsManagementPage() {
               </select>
             </div>
 
-            {/* Option Input (Muncul jika tipe Select / Radio) */}
             {(fieldType === "select" || fieldType === "radio") && (
               <div className="bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
                 <label className="block text-xs font-bold text-blue-900 mb-1">
@@ -285,7 +302,6 @@ export default function DynamicFieldsManagementPage() {
               </div>
             )}
 
-            {/* Grid 2 Kolom: Is Required & Order Index */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
@@ -315,7 +331,6 @@ export default function DynamicFieldsManagementPage() {
               </div>
             </div>
 
-            {/* Actions Button */}
             <div className="pt-2 flex items-center gap-2">
               <button
                 type="submit"
@@ -335,7 +350,6 @@ export default function DynamicFieldsManagementPage() {
           </form>
         </div>
 
-        {/* KOLOM KANAN: Preview & Daftar Field Terpasang */}
         <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
           <h2 className="text-sm font-bold text-slate-800 mb-4 border-b pb-3 border-slate-100 flex items-center justify-between">
             <span>📋 Daftar Field Kustom Aktif</span>
@@ -383,7 +397,6 @@ export default function DynamicFieldsManagementPage() {
                         <span className="text-emerald-600">{field.field_type}</span>
                       </div>
 
-                      {/* Display Pilihan Dropdown / Radio jika ada */}
                       {field.options && field.options.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5 pt-1">
                           {field.options.map((opt, idx) => (
@@ -411,7 +424,6 @@ export default function DynamicFieldsManagementPage() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );

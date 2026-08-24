@@ -1,19 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "../../../lib/api";
+import { apiFetch } from "@/lib/api";
+
+type SupportGroup = {
+  id: number;
+  name?: string;
+  group_name?: string;
+};
 
 type Category = {
   id: number;
   name: string;
   description?: string;
   parent_id?: number | null;
+  support_group_id?: number | null;
   children?: Category[];
 };
 
 export default function ManageCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [flatCategories, setFlatCategories] = useState<Category[]>([]);
+  const [supportGroups, setSupportGroups] = useState<SupportGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form State
@@ -21,6 +29,7 @@ export default function ManageCategoriesPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [parentId, setParentId] = useState<string>("");
+  const [supportGroupId, setSupportGroupId] = useState<string>("");
 
   useEffect(() => {
     fetchData();
@@ -29,17 +38,23 @@ export default function ManageCategoriesPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resTree, resFlat] = await Promise.all([
+      const [resTree, resFlat, resGroups] = await Promise.all([
         apiFetch("/ticket-categories"),
         apiFetch("/ticket-categories/list-all"),
+        apiFetch("/support-groups"), // Fetch data support groups
       ]);
 
       if (resTree.ok && resFlat.ok) {
         setCategories(await resTree.json());
         setFlatCategories(await resFlat.json());
       }
+
+      if (resGroups && resGroups.ok) {
+        const groupData = await resGroups.json();
+        setSupportGroups(groupData.data || groupData);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Gagal memuat data:", err);
     } finally {
       setLoading(false);
     }
@@ -50,6 +65,7 @@ export default function ManageCategoriesPage() {
     setName("");
     setDescription("");
     setParentId("");
+    setSupportGroupId("");
   };
 
   const handleEdit = (cat: Category) => {
@@ -57,16 +73,17 @@ export default function ManageCategoriesPage() {
     setName(cat.name);
     setDescription(cat.description || "");
     setParentId(cat.parent_id ? String(cat.parent_id) : "");
+    setSupportGroupId(cat.support_group_id ? String(cat.support_group_id) : "");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // PERBAIKAN: Pastikan parent_id bernilai null jika string kosong ("")
     const payload = {
       name,
       description,
       parent_id: parentId !== "" ? Number(parentId) : null,
+      support_group_id: supportGroupId !== "" ? Number(supportGroupId) : null,
     };
 
     const url = editingId ? `/ticket-categories/${editingId}` : "/ticket-categories";
@@ -111,7 +128,7 @@ export default function ManageCategoriesPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }}>
         {/* Form Add / Edit */}
-        <div style={{ backgroundColor: "#fff", padding: "20px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+        <div style={{ backgroundColor: "#fff", padding: "20px", borderRadius: "8px", border: "1px solid #e2e8f0", height: "fit-content" }}>
           <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "16px" }}>
             {editingId ? "Edit Kategori" : "Tambah Kategori Baru"}
           </h2>
@@ -135,7 +152,6 @@ export default function ManageCategoriesPage() {
                 style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px", marginTop: "4px" }}
               >
                 <option value="">-- Kategori Utama (No Parent) --</option>
-                {/* PERBAIKAN: Hanya tampilkan kategori utama (tanpa parent_id) sebagai opsi induk */}
                 {flatCategories
                   .filter((cat) => !cat.parent_id && cat.id !== editingId)
                   .map((cat) => (
@@ -144,6 +160,23 @@ export default function ManageCategoriesPage() {
                     </option>
                   ))}
               </select>
+            </div>
+
+            {/* Dropdown Support Group / Tim */}
+            <div>
+              <label style={{ fontSize: "13px", fontWeight: 600 }}>Tim Penanggung Jawab (Support Group)</label>
+             <select
+  value={supportGroupId}
+  onChange={(e) => setSupportGroupId(e.target.value)}
+  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px", marginTop: "4px" }}
+>
+  <option value="">-- Pilih Tim (Opsional) --</option>
+  {supportGroups.map((group: any) => (
+    <option key={group.id} value={group.id}>
+      {group.group_name || group.name}
+    </option>
+  ))}
+</select>
             </div>
 
             <div>

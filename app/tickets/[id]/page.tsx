@@ -194,42 +194,55 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   }
 
   async function handleAssigneeChange(userId: string) {
-  if (updatingAssignee || !ticket) return;
-  setUpdatingAssignee(true);
+    if (updatingAssignee || !ticket) return;
+    setUpdatingAssignee(true);
 
-  try {
-    const token = localStorage.getItem("token");
-    // Konversi string kosong menjadi null
-    const payloadValue = userId === "" ? null : Number(userId);
+    try {
+      const token = localStorage.getItem("token");
+      const payloadValue = userId === "" ? null : Number(userId);
 
-    const res = await fetch(`http://127.0.0.1:8000/api/tickets/${id}`, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ 
-        subject: ticket.subject,
-        description: ticket.description,
-        priority: getPriorityString(ticket.priority),
-        assigned_to: payloadValue // Mengirim ID number atau null
-      }),
-    });
+      // Mapping prioritas teks ke ID angka untuk menghindari error bigint di backend
+      const priorityMap: Record<string, number> = {
+        "Low": 1,
+        "Medium": 2,
+        "High": 3,
+        "Urgent": 4,
+      };
 
-    if (res.ok) {
-      await fetchData();
-    } else {
-      const responseData = await res.json().catch(() => null);
-      alert(`Gagal assign engineer: ${responseData?.message || "Periksa server"}`);
+      const currentPriName = getPriorityString(ticket.priority);
+      // Ambil priority_id jika objek tiket menyediakannya, atau gunakan mapping teks
+      const priorityIdToSend = typeof ticket.priority === "object" && ticket.priority?.id 
+        ? ticket.priority.id 
+        : (priorityMap[currentPriName] || 1);
+
+      const res = await fetch(`http://127.0.0.1:8000/api/tickets/${id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ 
+          subject: ticket.subject,
+          description: ticket.description,
+          priority_id: priorityIdToSend, // Kirim sebagai ID angka (priority_id)
+          assigned_to: payloadValue // Mengirim ID number atau null
+        }),
+      });
+
+      if (res.ok) {
+        await fetchData();
+      } else {
+        const responseData = await res.json().catch(() => null);
+        alert(`Gagal assign engineer: ${responseData?.message || "Periksa server"}`);
+      }
+    } catch (err) {
+      console.error("Error handleAssigneeChange:", err);
+      alert("Gagal terhubung ke server Backend.");
+    } finally {
+      setUpdatingAssignee(false);
     }
-  } catch (err) {
-    console.error("Error handleAssigneeChange:", err);
-    alert("Gagal terhubung ke server Backend.");
-  } finally {
-    setUpdatingAssignee(false);
   }
-}
 
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
