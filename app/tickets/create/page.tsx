@@ -25,6 +25,7 @@ type CategoryField = {
   field_type: "text" | "number" | "textarea" | "select" | "date";
   options?: string[] | string;
   is_required: boolean;
+  placeholder?: string | null;
 };
 
 export default function CreateTicketPage() {
@@ -73,10 +74,13 @@ export default function CreateTicketPage() {
     fetchData();
   }, []);
 
-  // Fetch Custom Fields otomatis saat kategori/sub-kategori dipilih
+// Fetch Custom Fields otomatis saat kategori/sub-kategori dipilih
   useEffect(() => {
     const catId = selectedChild?.id || selectedParent?.id;
-    if (!catId) return;
+    if (!catId) {
+      setCustomFields([]); // Bersihkan jika tidak ada kategori
+      return;
+    }
 
     async function fetchFields() {
       try {
@@ -84,7 +88,7 @@ export default function CreateTicketPage() {
         if (res.ok) {
           const fields: CategoryField[] = await res.json();
           setCustomFields(fields);
-          setCustomValues({}); // Reset penampung jawaban
+          // ❌ HAPUS setCustomValues({}) DARI SINI AGAR TIDAK BENTROK
         }
       } catch (err) {
         console.error("Gagal mengambil custom fields:", err);
@@ -93,9 +97,11 @@ export default function CreateTicketPage() {
     fetchFields();
   }, [selectedChild, selectedParent]);
 
-  const handleSelectCard = (child: Category) => {
+const handleSelectCard = (child: Category) => {
     setSelectedChild(child);
     setSubject(child.name);
+    setCustomFields([]);   // Kosongkan field lama dulu
+    setCustomValues({});   // Reset jawaban form di sini
   };
 
   const handleCustomFieldChange = (fieldId: number, value: any) => {
@@ -310,142 +316,110 @@ export default function CreateTicketPage() {
               )}
 
               <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {/* Field Dropdown Unit / Departemen */}
-                <div>
-                  <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
-                    Unit / Departemen
-                  </label>
-                  <select
-                    value={departmentId}
-                    onChange={(e) => setDepartmentId(e.target.value)}
-                    style={{ ...commonInputStyle, backgroundColor: "#fff" }}
-                    required
-                  >
-                    <option value="">-- Pilih Unit / Departemen --</option>
-                    {departments.map((dept) => (
-                      <option key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+  {/* 1. Field Dropdown Unit / Departemen */}
+  <div>
+    <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+      Unit / Departemen <span style={{ color: "#ef4444" }}>*</span>
+    </label>
+    <select
+      value={departmentId}
+      onChange={(e) => setDepartmentId(e.target.value)}
+      style={{ ...commonInputStyle, backgroundColor: "#fff" }}
+      required
+    >
+      <option value="">-- Pilih Unit / Departemen --</option>
+      {departments.map((dept) => (
+        <option key={dept.id} value={dept.id}>
+          {dept.name}
+        </option>
+      ))}
+    </select>
+  </div>
 
-                {/* Field Subject */}
-                <div>
-                  <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
-                    Subject
-                  </label>
-                  <input
-                    type="text"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    style={commonInputStyle}
-                    required
-                  />
-                </div>
+  {/* 2. Field Subject (Otomatis dari Kategori) */}
+  <div>
+    <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+      Subject <span style={{ color: "#ef4444" }}>*</span>
+    </label>
+    <input
+      type="text"
+      value={subject}
+      onChange={(e) => setSubject(e.target.value)}
+      style={commonInputStyle}
+      required
+    />
+  </div>
 
-                {/* ===== DYNAMIC CUSTOM FIELDS DARI DATABASE ===== */}
-                {customFields.map((field) => {
-                  const opts = parseOptions(field.options);
-                  return (
-                    <div key={field.id}>
-                      <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
-                        {field.field_label} {field.is_required && <span style={{ color: "#ef4444" }}>*</span>}
-                      </label>
+  {/* 3. ===== CUSTOM FIELDS DARI DATABASE (Tampil Dinamis Sesuai Pengaturan Admin) ===== */}
+  {customFields.map((field) => {
+    const opts = parseOptions(field.options);
+    const customPlaceholder = (field.placeholder && field.placeholder.trim() !== "") 
+  ? field.placeholder 
+  : `Masukkan ${field.field_label.toLowerCase()}`;
 
-                      {field.field_type === "textarea" ? (
-                        <textarea
-                          rows={3}
-                          value={customValues[field.id] || ""}
-                          required={field.is_required}
-                          onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
-                          style={commonInputStyle}
-                          placeholder={`Masukkan ${field.field_label.toLowerCase()}`}
-                        />
-                      ) : field.field_type === "select" ? (
-                        <select
-                          value={customValues[field.id] || ""}
-                          required={field.is_required}
-                          onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
-                          style={{ ...commonInputStyle, backgroundColor: "#fff" }}
-                        >
-                          <option value="">-- Pilih {field.field_label} --</option>
-                          {opts.map((opt, i) => (
-                            <option key={i} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type={field.field_type}
-                          value={customValues[field.id] || ""}
-                          required={field.is_required}
-                          onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
-                          style={commonInputStyle}
-                          placeholder={field.field_type === "text" ? `Masukkan ${field.field_label.toLowerCase()}` : ""}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+    return (
+      <div key={field.id}>
+        <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+          {field.field_label} {field.is_required && <span style={{ color: "#ef4444" }}>*</span>}
+        </label>
 
-                {/* Field Description Standar (Hanya Muncul Jika Tidak Ada Custom Field) */}
+        {field.field_type === "textarea" ? (
+          <textarea
+            rows={3}
+            value={customValues[field.id] || ""}
+            required={field.is_required}
+            onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
+            style={commonInputStyle}
+            placeholder={customPlaceholder}
+          />
+        ) : field.field_type === "select" ? (
+          <select
+            value={customValues[field.id] || ""}
+            required={field.is_required}
+            onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
+            style={{ ...commonInputStyle, backgroundColor: "#fff" }}
+          >
+            <option value="">-- Pilih {field.field_label} --</option>
+            {opts.map((opt, i) => (
+              <option key={i} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={field.field_type === "number" ? "number" : field.field_type === "date" ? "date" : "text"}
+            value={customValues[field.id] || ""}
+            required={field.is_required}
+            onChange={(e) => handleCustomFieldChange(field.id, e.target.value)}
+            style={commonInputStyle}
+            placeholder={customPlaceholder}
+          />
+        )}
+      </div>
+    );
+  })}
 
-                  <div>
-                    <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
-                      Description
-                    </label>
-                    <textarea
-                      rows={5}
-                      placeholder="Jelaskan detail permasalahan atau permintaan Anda..."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      style={commonInputStyle}
-                    />
-                  </div>
   
 
-                {/* Field Attachments / Lampiran File */}
-                <div>
-                  <label style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
-                    Attachment / Lampiran (Opsional)
-                  </label>
-                  <input
-                    type="file"
-                    multiple
-                    onChange={(e) => setFiles(e.target.files)}
-                    style={{
-                      ...commonInputStyle,
-                      padding: "8px",
-                      border: "1px dashed #cbd5e1",
-                      backgroundColor: "#f8fafc",
-                      cursor: "pointer",
-                    }}
-                  />
-                  <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px", display: "block" }}>
-                    Format yang diizinkan: JPG, PNG, PDF, DOC, DOCX, XLS, XLSX, ZIP, RAR (Maks. 5MB)
-                  </span>
-                </div>
-
-                {/* Action Buttons */}
-                <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "8px" }}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedChild(null)}
-                    style={{ padding: "10px 16px", backgroundColor: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", cursor: "pointer" }}
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    style={{ padding: "10px 16px", backgroundColor: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", opacity: loading ? 0.7 : 1 }}
-                  >
-                    {loading ? "Mengirim..." : "Create Ticket"}
-                  </button>
-                </div>
-              </form>
+  {/* 5. Action Buttons */}
+  <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "8px" }}>
+    <button
+      type="button"
+      onClick={() => setSelectedChild(null)}
+      style={{ padding: "10px 16px", backgroundColor: "#f1f5f9", color: "#475569", border: "none", borderRadius: "6px", cursor: "pointer" }}
+    >
+      Batal
+    </button>
+    <button
+      type="submit"
+      disabled={loading}
+      style={{ padding: "10px 16px", backgroundColor: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", opacity: loading ? 0.7 : 1 }}
+    >
+      {loading ? "Mengirim..." : "Create Ticket"}
+    </button>
+  </div>
+</form>
             </div>
           )}
         </div>

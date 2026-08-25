@@ -20,10 +20,11 @@ interface CategoryField {
   category_id: number;
   field_label: string;
   field_name: string;
-  field_type: "text" | "number" | "select" | "textarea" | "radio";
+  field_type: "text" | "number" | "select" | "textarea" | "radio" | "file";
   options: string[] | null;
   is_required: boolean;
   order_index: number;
+  placeholder?: string | null;
 }
 
 export default function DynamicFieldsManagementPage() {
@@ -43,6 +44,7 @@ export default function DynamicFieldsManagementPage() {
   const [optionsString, setOptionsString] = useState<string>("");
   const [isRequired, setIsRequired] = useState<boolean>(true);
   const [orderIndex, setOrderIndex] = useState<number>(1);
+  const [placeholder, setPlaceholder] = useState<string>("");
 
   // 1. Fetch Daftar Kategori Tiket
   useEffect(() => {
@@ -102,6 +104,32 @@ export default function DynamicFieldsManagementPage() {
     }
   };
 
+
+
+  const handleDeleteField = async (fieldId: number) => {
+  if (!confirm("Apakah Anda yakin ingin menghapus field kustom ini?")) return;
+
+  try {
+    const token = localStorage.getItem("token") || "";
+    const res = await fetch(`${API_URL}/ticket-fields/${fieldId}`, {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) throw new Error("Gagal menghapus field");
+
+    setMessage({ type: "success", text: "Field kustom berhasil dihapus!" });
+    if (selectedCategoryId) {
+      fetchCategoryFields(Number(selectedCategoryId));
+    }
+  } catch (err) {
+    setMessage({ type: "error", text: "Terjadi kesalahan saat menghapus field." });
+  }
+};
+
   // Auto-generate field_name berdasarkan field_label
   const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -122,6 +150,7 @@ export default function DynamicFieldsManagementPage() {
     setOptionsString("");
     setIsRequired(true);
     setOrderIndex(existingFields.length + 1);
+    setPlaceholder("");
     setMessage(null);
   };
 
@@ -152,6 +181,7 @@ export default function DynamicFieldsManagementPage() {
       options: formattedOptions,
       is_required: isRequired,
       order_index: Number(orderIndex),
+      placeholder: placeholder,
     };
 
     try {
@@ -280,7 +310,24 @@ export default function DynamicFieldsManagementPage() {
                 <option value="number">Angka (Number)</option>
                 <option value="select">Dropdown Menu (Select)</option>
                 <option value="radio">Radio Button (Pilihan Tunggal)</option>
+                <option value="file">File / Lampiran (Attachment)</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">
+                Placeholder (Opsional)
+              </label>
+              <input
+                type="text"
+                placeholder="Contoh: Masukkan nomor inventaris..."
+                value={placeholder}
+                onChange={(e) => setPlaceholder(e.target.value)}
+                className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Teks panduan samar yang muncul di dalam kotak input form user.
+              </span>
             </div>
 
             {(fieldType === "select" || fieldType === "radio") && (
@@ -392,6 +439,21 @@ export default function DynamicFieldsManagementPage() {
                         )}
                       </div>
 
+                      {/* ========================================== */}
+          {/* 📍 LETAKKAN KODE TERSEBUT DI SINI         */}
+          {/* ========================================== */}
+          <div className="text-[11px] font-mono text-slate-500">
+            key: <span className="text-blue-600">{field.field_name}</span> | type:{" "}
+            <span className="text-emerald-600">{field.field_type}</span>
+            {field.placeholder && (
+              <span className="block text-slate-400 italic mt-0.5">
+                placeholder: "{field.placeholder}"
+              </span>
+            )}
+          </div>
+          {/* ========================================== */}
+
+
                       <div className="text-[11px] font-mono text-slate-500">
                         key: <span className="text-blue-600">{field.field_name}</span> | type:{" "}
                         <span className="text-emerald-600">{field.field_type}</span>
@@ -411,14 +473,14 @@ export default function DynamicFieldsManagementPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => alert(`Fitur hapus field ID ${field.id} dapat ditambahkan.`)}
-                        className="text-xs text-rose-500 hover:text-rose-700 font-semibold p-1 hover:bg-rose-50 rounded"
-                      >
-                        Hapus
-                      </button>
-                    </div>
+                   <div className="flex items-center gap-2">
+  <button
+    onClick={() => field.id && handleDeleteField(field.id)}
+    className="text-xs text-rose-500 hover:text-rose-700 font-semibold p-1 hover:bg-rose-50 rounded"
+  >
+    Hapus
+  </button>
+</div>
                   </div>
                 ))}
             </div>
