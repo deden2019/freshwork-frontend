@@ -196,6 +196,19 @@ function Navbar() {
                     >
                       Custom Form Fields
                     </Link>
+
+                    {/* Menu Baru: Company Profile */}
+                    <Link
+                      href="/admin/company-profile"
+                      onClick={() => setIsSettingsOpen(false)}
+                      className={`block px-4 py-2 text-xs font-medium transition-colors border-t border-slate-100 mt-1 pt-2 ${
+                        pathname.startsWith("/admin/company-profile")
+                          ? "bg-blue-50 text-blue-600 font-semibold"
+                          : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      Company Profile
+                    </Link>
                   </div>
                 )}
               </div>

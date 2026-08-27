@@ -8,42 +8,41 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
 
-    try {
-      const response = await fetch("http://127.0.0.1:8000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+  try {
+    // Ubah dari "/api/sybase-login" menjadi "/api/login" (yang mendukung Postgres & Sybase)
+    const response = await fetch("http://127.0.0.1:8000/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        id: email, // Bisa menampung email (Postgres) ATAU ID (Sybase)
+        password 
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || "Email atau password salah");
-      }
-
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-
-        // TAMBAHKAN BARIS INI: Simpan data user ke LocalStorage secara otomatis
-        const userData = data.user || data.data?.user || data.data;
-        if (userData) {
-          localStorage.setItem("user", JSON.stringify(userData));
-        }
-
-        document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
-        window.location.href = "/dashboard";
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error(data.message || "ID, Email, atau password salah");
     }
-  }
 
+    if (data.status === "success") {
+      // Simpan data user dan token asli dari response backend
+      localStorage.setItem("user", JSON.stringify(data.data));
+      localStorage.setItem("token", data.token);
+
+      document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
+      window.location.href = "/dashboard";
+    }
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+}
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg border border-slate-200 p-8">
@@ -63,16 +62,16 @@ async function handleLogin(e: React.FormEvent) {
           </div>
         )}
 
-        {/* Form */}
+       {/* Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-              Email Address
+              ID User / Email
             </label>
             <input
-              type="email"
+              type="text"
               required
-              placeholder="nama@perusahaan.com"
+              placeholder="Masukkan ID (cth: ALEXL) atau email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-sm transition"
